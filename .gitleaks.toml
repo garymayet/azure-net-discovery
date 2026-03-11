@@ -1,0 +1,71 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# .gitleaks.toml — Reglas personalizadas para detectar datos Azure sensibles
+# Complementa las reglas built-in de gitleaks con patrones específicos del script
+# ═══════════════════════════════════════════════════════════════════════════════
+
+title = "Azure Hub & Spoke - Gitleaks Config"
+
+# ── Reglas personalizadas ────────────────────────────────────────────────────
+
+[[rules]]
+id = "azure-subscription-id"
+description = "Azure Subscription ID (GUID en contexto de suscripción)"
+regex = '''(?i)(subscription[_\-\s]?id|SubscriptionId)\s*[=:]\s*["']?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}["']?'''
+tags = ["azure", "infrastructure"]
+
+[[rules]]
+id = "azure-tenant-id"
+description = "Azure Tenant ID"
+regex = '''(?i)(tenant[_\-\s]?id|TenantId)\s*[=:]\s*["']?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}["']?'''
+tags = ["azure", "infrastructure"]
+
+[[rules]]
+id = "azure-resource-id"
+description = "Azure Resource ID completo (contiene suscripción + RG + recurso)"
+regex = '''/subscriptions/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/resourceGroups/'''
+tags = ["azure", "infrastructure"]
+
+[[rules]]
+id = "azure-private-ip-range"
+description = "IP privada en contexto de configuración (10.x, 172.16-31.x, 192.168.x)"
+regex = '''(?i)(private[_\-]?ip|PrivateIpAddress|firewall.+ip)\s*[=:]\s*["']?(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3})["']?'''
+tags = ["azure", "network"]
+
+[[rules]]
+id = "azure-connection-string"
+description = "Azure Storage o Service Bus connection string"
+regex = '''(?i)(DefaultEndpointsProtocol|AccountKey|SharedAccessKey)\s*='''
+tags = ["azure", "secret"]
+
+[[rules]]
+id = "azure-sas-token"
+description = "Azure SAS Token"
+regex = '''[?&]s[aip][gkp]?=[\w%/+=]{20,}'''
+tags = ["azure", "secret"]
+
+# ── Excepciones (allowlist) ──────────────────────────────────────────────────
+
+[allowlist]
+description = "Archivos permitidos que contienen patrones similares pero no son secretos"
+
+paths = [
+    # El script contiene patrones regex, no datos reales
+    '''Discover-HubSpoke\.ps1''',
+    # Documentación de ejemplo con GUIDs placeholder
+    '''README.*\.md''',
+    # Este propio archivo de configuración
+    '''\.gitleaks\.toml''',
+    # Ejemplo .env con placeholders
+    '''\.env\.example''',
+]
+
+# GUIDs de ejemplo/placeholder comunes
+regexes = [
+    # GUIDs de documentación Microsoft (todos ceros, todos efes, etc.)
+    '''00000000-0000-0000-0000-000000000000''',
+    '''aaaa-bbbb-cccc''',
+    '''xxxx-yyyy-zzzz''',
+    # Placeholders típicos
+    '''<your-.*-here>''',
+    '''REPLACE_WITH_.*''',
+]

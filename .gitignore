@@ -1,0 +1,127 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# .gitignore — Azure Hub & Spoke Discovery Tool
+# Previene la exposición de datos sensibles de infraestructura Azure en GitHub
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 1. OUTPUT DEL SCRIPT (contiene Subscription IDs, Resource Groups, IPs)
+# ─────────────────────────────────────────────────────────────────────────────
+hub-spoke-output/
+output/
+outputs/
+results/
+
+# CSVs de inventario y reportes (llevan IDs de suscripción, nombres de RGs, CIDRs)
+inventory-*.csv
+best-practices-report.csv
+*-report.csv
+*-inventory.csv
+
+# Diagramas generados (contienen nombres internos de VNets, IPs privadas, SKUs)
+hub-spoke-topology.mmd
+*.generated.mmd
+*.generated.mermaid
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 2. LOGS Y TRANSCRIPCIONES
+# ─────────────────────────────────────────────────────────────────────────────
+*.log
+*.log.*
+logs/
+transcript-*.txt
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 3. CREDENCIALES Y CONTEXTO AZURE
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Azure CLI / PowerShell profile y tokens
+.azure/
+.Azure/
+azureProfile.json
+TokenCache.dat
+AzureRmContext.json
+service-principal.json
+
+# Archivos genéricos de secretos
+*.pem
+*.pfx
+*.key
+*.p12
+*.crt
+*.cer
+.env
+.env.*
+!.env.example
+secrets.json
+credentials.json
+*-credentials.*
+*secret*
+!*secret*.example
+
+# Terraform state (si se complementa con IaC)
+*.tfstate
+*.tfstate.*
+.terraform/
+*.tfvars
+!*.tfvars.example
+
+# Bicep / ARM parameter files con valores reales
+*.parameters.json
+!*.parameters.example.json
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 4. DATOS EXPORTADOS QUE PUEDEN CONTENER PII O INFRA INTERNA
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Exportaciones de datos en cualquier formato tabular
+*.csv
+!templates/*.csv
+*.tsv
+*.xlsx
+*.xls
+
+# JSON dumps de recursos Azure (contienen ResourceIds completos)
+*-dump.json
+*-export.json
+resource-graph-*.json
+azure-resources.json
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 5. SISTEMA OPERATIVO Y EDITORES
+# ─────────────────────────────────────────────────────────────────────────────
+
+# macOS
+.DS_Store
+._*
+
+# Windows
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# VS Code
+.vscode/
+!.vscode/settings.json
+!.vscode/extensions.json
+*.code-workspace
+
+# JetBrains (Rider, IntelliJ)
+.idea/
+
+# Vim / Emacs
+*.swp
+*.swo
+*~
+\#*\#
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 6. POWERSHELL / RUNTIME
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Módulos descargados localmente
+Modules/
+packages/
+
+# Historial de consola PowerShell
+ConsoleHost_history.txt
+PSReadLine/
