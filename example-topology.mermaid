@@ -1,8 +1,7 @@
 graph TD
 
-    %% ═══════════════════════════════════════════════
-    %% Azure Hub & Spoke — Diagrama de Ejemplo
-    %% ═══════════════════════════════════════════════
+    %% Azure Hub and Spoke - Diagrama de Ejemplo
+    %% Generado por Discover-HubSpoke.ps1
 
     classDef hubStyle fill:#1a73e8,stroke:#0d47a1,stroke-width:3px,color:#fff
     classDef spokeStyle fill:#34a853,stroke:#1b5e20,stroke-width:2px,color:#fff
@@ -11,45 +10,45 @@ graph TD
     classDef dnsStyle fill:#9c27b0,stroke:#4a148c,stroke-width:2px,color:#fff
     classDef onpremStyle fill:#607d8b,stroke:#263238,stroke-width:2px,color:#fff
 
-    ONPREM[/"🏢 On-Premises Datacenter"/]:::onpremStyle
+    ONPREM[/"On-Premises Datacenter"/]:::onpremStyle
 
-    subgraph hub_sub["🔷 HUB: hub-core-vnet"]
+    subgraph hub_sub["HUB: hub-core-vnet"]
         direction TB
-        HUB["📡 hub-core-vnet\n10.0.0.0/16\neastus2"]:::hubStyle
-        FW["🔥 hub-azfw-premium\nTier: Premium\nIP: 10.0.1.4\nZonas: 1, 2, 3"]:::fwStyle
+        HUB["hub-core-vnet<br/>10.0.0.0/16<br/>eastus2"]:::hubStyle
+        FW["hub-azfw-premium<br/>Tier: Premium<br/>IP: 10.0.1.4<br/>Zonas: 1, 2, 3"]:::fwStyle
         HUB --- FW
-        ERGW["⚡ hub-er-gateway\nExpressRoute\nSKU: ErGw2AZ\n✅ AZ"]:::gwStyle
+        ERGW["hub-er-gateway<br/>ExpressRoute<br/>SKU: ErGw2AZ<br/>AZ: Yes"]:::gwStyle
         HUB --- ERGW
-        VPNGW["🔒 hub-vpn-gateway\nVPN Gateway\nSKU: VpnGw1\n⚠️ No-AZ"]:::gwStyle
+        VPNGW["hub-vpn-gateway<br/>VPN Gateway<br/>SKU: VpnGw1<br/>AZ: No"]:::gwStyle
         HUB --- VPNGW
-        DNS["🌐 hub-dns-resolver\nDNS Private Resolver"]:::dnsStyle
+        DNS["hub-dns-resolver<br/>DNS Private Resolver"]:::dnsStyle
         HUB --- DNS
     end
 
-    ONPREM =="ExpressRoute"==> ERGW
-    ONPREM -.-"VPN IPSec"-.-> VPNGW
+    ONPREM ==>|ExpressRoute| ERGW
+    ONPREM -.->|VPN IPSec| VPNGW
 
-    subgraph spoke1_sub["🟢 SPOKE: spoke-app1-vnet"]
-        SP1["🖥️ spoke-app1-vnet\n10.1.0.0/16\neastus2"]:::spokeStyle
-        SP1_FE["📂 snet-frontend\n10.1.1.0/24"]
+    subgraph spoke1_sub["SPOKE: spoke-app1-vnet"]
+        SP1["spoke-app1-vnet<br/>10.1.0.0/16<br/>eastus2"]:::spokeStyle
+        SP1_FE["snet-frontend<br/>10.1.1.0/24"]
         SP1 --- SP1_FE
-        SP1_BE["📂 snet-backend\n10.1.2.0/24"]
+        SP1_BE["snet-backend<br/>10.1.2.0/24"]
         SP1 --- SP1_BE
     end
 
-    subgraph spoke2_sub["🟢 SPOKE: spoke-data-vnet"]
-        SP2["🖥️ spoke-data-vnet\n10.2.0.0/16\neastus2"]:::spokeStyle
-        SP2_SQL["📂 snet-sql-mi\n10.2.1.0/24"]
+    subgraph spoke2_sub["SPOKE: spoke-data-vnet"]
+        SP2["spoke-data-vnet<br/>10.2.0.0/16<br/>eastus2"]:::spokeStyle
+        SP2_SQL["snet-sql-mi<br/>10.2.1.0/24"]
         SP2 --- SP2_SQL
     end
 
-    subgraph spoke3_sub["🟢 SPOKE: spoke-dev-vnet"]
-        SP3["🖥️ spoke-dev-vnet\n10.3.0.0/16\neastus2"]:::spokeStyle
-        SP3_AKS["📂 snet-aks\n10.3.0.0/22"]
+    subgraph spoke3_sub["SPOKE: spoke-dev-vnet"]
+        SP3["spoke-dev-vnet<br/>10.3.0.0/16<br/>eastus2"]:::spokeStyle
+        SP3_AKS["snet-aks<br/>10.3.0.0/22"]
         SP3 --- SP3_AKS
     end
 
-    HUB <--"GW Transit | Use Remote GW"--> SP1
-    HUB <--"GW Transit"--> SP2
-    HUB <--"GW Transit | Use Remote GW"--> SP3
-    SP3 -.-"⚠️ Spoke-to-Spoke"-.- SP1
+    HUB <-->|GW Transit, Use Remote GW| SP1
+    HUB <-->|GW Transit| SP2
+    HUB <-->|GW Transit, Use Remote GW| SP3
+    SP3 -.->|S2S: Spoke-to-Spoke| SP1

@@ -606,7 +606,7 @@ $mermaid = [System.Text.StringBuilder]::new()
 # ── Nodo On-Premises (si hay ER/VPN Gateways) ──
 if (($allErGateways.Count + $allVpnGateways.Count) -gt 0) {
     [void]$mermaid.AppendLine("    %% On-Premises / Conectividad Externa")
-    [void]$mermaid.AppendLine("    ONPREM[/""🏢 On-Premises\nDatacenter""/]:::onpremStyle")
+    [void]$mermaid.AppendLine("    ONPREM[/""🏢 On-Premises<br/>Datacenter""/]:::onpremStyle")
     [void]$mermaid.AppendLine("")
 }
 
@@ -616,15 +616,15 @@ foreach ($hub in ($allVNets | Where-Object { $_.IsHub })) {
     [void]$mermaid.AppendLine("    %% ── Hub: $($hub.VNetName) ──")
     [void]$mermaid.AppendLine("    subgraph ${hubId}_sub[""🔷 HUB: $($hub.VNetName)""]")
     [void]$mermaid.AppendLine("        direction TB")
-    [void]$mermaid.AppendLine("        ${hubId}[""📡 $($hub.VNetName)\n$($hub.AddressSpace)\n$($hub.Location)""]:::hubStyle")
+    [void]$mermaid.AppendLine("        ${hubId}[""📡 $($hub.VNetName)<br/>$($hub.AddressSpace)<br/>$($hub.Location)""]:::hubStyle")
 
     # Firewalls dentro del Hub
     $hubFirewalls = $allFirewalls | Where-Object { $_.VNetName -eq $hub.VNetName }
     foreach ($fw in $hubFirewalls) {
         $fwId = ConvertTo-MermaidId $fw.FirewallName
-        $fwLabel = "🔥 $($fw.FirewallName)\nTier: $($fw.SkuTier)"
-        if ($fw.PrivateIP) { $fwLabel += "\nIP: $($fw.PrivateIP)" }
-        if ($fw.Zones) { $fwLabel += "\nZonas: $($fw.Zones)" }
+        $fwLabel = "🔥 $($fw.FirewallName)<br/>Tier: $($fw.SkuTier)"
+        if ($fw.PrivateIP) { $fwLabel += "<br/>IP: $($fw.PrivateIP)" }
+        if ($fw.Zones) { $fwLabel += "<br/>Zonas: $($fw.Zones)" }
         [void]$mermaid.AppendLine("        ${fwId}[""$fwLabel""]:::fwStyle")
         [void]$mermaid.AppendLine("        ${hubId} --- ${fwId}")
     }
@@ -634,7 +634,7 @@ foreach ($hub in ($allVNets | Where-Object { $_.IsHub })) {
     foreach ($gw in $hubErGws) {
         $gwId = ConvertTo-MermaidId $gw.GatewayName
         $azTag = if ($gw.IsZoneRedundant) { "✅ AZ" } else { "⚠️ No-AZ" }
-        [void]$mermaid.AppendLine("        ${gwId}[""⚡ $($gw.GatewayName)\nExpressRoute\nSKU: $($gw.Sku)\n$azTag""]:::gwStyle")
+        [void]$mermaid.AppendLine("        ${gwId}[""⚡ $($gw.GatewayName)<br/>ExpressRoute<br/>SKU: $($gw.Sku)<br/>$azTag""]:::gwStyle")
         [void]$mermaid.AppendLine("        ${hubId} --- ${gwId}")
     }
 
@@ -643,7 +643,7 @@ foreach ($hub in ($allVNets | Where-Object { $_.IsHub })) {
     foreach ($gw in $hubVpnGws) {
         $gwId = ConvertTo-MermaidId $gw.GatewayName
         $azTag = if ($gw.IsZoneRedundant) { "✅ AZ" } else { "⚠️ No-AZ" }
-        [void]$mermaid.AppendLine("        ${gwId}[""🔒 $($gw.GatewayName)\nVPN Gateway\nSKU: $($gw.Sku)\n$azTag""]:::gwStyle")
+        [void]$mermaid.AppendLine("        ${gwId}[""🔒 $($gw.GatewayName)<br/>VPN Gateway<br/>SKU: $($gw.Sku)<br/>$azTag""]:::gwStyle")
         [void]$mermaid.AppendLine("        ${hubId} --- ${gwId}")
     }
 
@@ -651,7 +651,7 @@ foreach ($hub in ($allVNets | Where-Object { $_.IsHub })) {
     $hubDns = $allDnsResolvers | Where-Object { $_.VNetName -eq $hub.VNetName }
     foreach ($dns in $hubDns) {
         $dnsId = ConvertTo-MermaidId $dns.ResolverName
-        [void]$mermaid.AppendLine("        ${dnsId}[""🌐 $($dns.ResolverName)\nDNS Private Resolver""]:::dnsStyle")
+        [void]$mermaid.AppendLine("        ${dnsId}[""🌐 $($dns.ResolverName)<br/>DNS Private Resolver""]:::dnsStyle")
         [void]$mermaid.AppendLine("        ${hubId} --- ${dnsId}")
     }
 
@@ -661,11 +661,11 @@ foreach ($hub in ($allVNets | Where-Object { $_.IsHub })) {
     # Conexión On-Prem → Gateway (si existe)
     foreach ($gw in $hubErGws) {
         $gwId = ConvertTo-MermaidId $gw.GatewayName
-        [void]$mermaid.AppendLine("    ONPREM ==""ExpressRoute""==> ${gwId}")
+        [void]$mermaid.AppendLine("    ONPREM ==>|ExpressRoute| ${gwId}")
     }
     foreach ($gw in $hubVpnGws) {
         $gwId = ConvertTo-MermaidId $gw.GatewayName
-        [void]$mermaid.AppendLine("    ONPREM -.-""VPN IPSec""-.-> ${gwId}")
+        [void]$mermaid.AppendLine("    ONPREM -.->|VPN IPSec| ${gwId}")
     }
     [void]$mermaid.AppendLine("")
 }
@@ -676,7 +676,7 @@ foreach ($spoke in ($allVNets | Where-Object { $_.IsSpoke })) {
 
     [void]$mermaid.AppendLine("    %% ── Spoke: $($spoke.VNetName) ──")
     [void]$mermaid.AppendLine("    subgraph ${spokeId}_sub[""🟢 SPOKE: $($spoke.VNetName)""]")
-    [void]$mermaid.AppendLine("        ${spokeId}[""🖥️ $($spoke.VNetName)\n$($spoke.AddressSpace)\n$($spoke.Location)""]:::spokeStyle")
+    [void]$mermaid.AppendLine("        ${spokeId}[""🖥️ $($spoke.VNetName)<br/>$($spoke.AddressSpace)<br/>$($spoke.Location)""]:::spokeStyle")
 
     # Listar subnets del Spoke (solo las estándar, las especiales ya están cubitas)
     $spokeSubnets = $allSubnets | Where-Object {
@@ -685,7 +685,7 @@ foreach ($spoke in ($allVNets | Where-Object { $_.IsSpoke })) {
     if ($spokeSubnets.Count -gt 0 -and $spokeSubnets.Count -le 5) {
         foreach ($sn in $spokeSubnets) {
             $snId = ConvertTo-MermaidId "$($spoke.VNetName)_$($sn.SubnetName)"
-            [void]$mermaid.AppendLine("        ${snId}[""📂 $($sn.SubnetName)\n$($sn.AddressPrefix)""]")
+            [void]$mermaid.AppendLine("        ${snId}[""📂 $($sn.SubnetName)<br/>$($sn.AddressPrefix)""]")
             [void]$mermaid.AppendLine("        ${spokeId} --- ${snId}")
         }
     }
@@ -726,19 +726,19 @@ foreach ($peer in $allPeerings) {
     $annotations = @()
     if ($peer.AllowGatewayTransit) { $annotations += "GW Transit" }
     if ($peer.UseRemoteGateways)   { $annotations += "Use Remote GW" }
-    if ($peer.PeeringState -ne "Connected") { $annotations += "⚠️ $($peer.PeeringState)" }
-    if ($annotations.Count -gt 0) { $peerLabel = $annotations -join " | " }
+    if ($peer.PeeringState -ne "Connected") { $annotations += "WARN: $($peer.PeeringState)" }
+    if ($annotations.Count -gt 0) { $peerLabel = $annotations -join ", " }
 
     $sourceIsHub = $hubVNetNames.Contains($peer.SourceVNet)
     $remoteIsHub = $hubVNetNames.Contains($peer.RemoteVNetName)
 
     if ($sourceIsHub -or $remoteIsHub) {
         # Hub ↔ Spoke: línea sólida gruesa
-        [void]$mermaid.AppendLine("    ${sourceId} <--""$peerLabel""--> ${remoteId}")
+        [void]$mermaid.AppendLine("    ${sourceId} <-->|$peerLabel| ${remoteId}")
     }
     else {
         # Spoke ↔ Spoke: línea punteada (anti-pattern)
-        [void]$mermaid.AppendLine("    ${sourceId} -.-""⚠️ S2S: $peerLabel""-.-> ${remoteId}")
+        [void]$mermaid.AppendLine("    ${sourceId} -.->|S2S: $peerLabel| ${remoteId}")
     }
 }
 
