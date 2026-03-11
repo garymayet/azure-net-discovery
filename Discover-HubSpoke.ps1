@@ -92,13 +92,15 @@ catch {
 }
 
 # Resolver suscripciones objetivo
+# @() fuerza array incluso con un solo resultado (evita error .Count en objeto único)
 if ($SubscriptionIds -and $SubscriptionIds.Count -gt 0) {
-    $subscriptions = $SubscriptionIds | ForEach-Object {
-        Get-AzSubscription -SubscriptionId $_
-    }
+    $subscriptions = @($SubscriptionIds | ForEach-Object {
+        Get-AzSubscription -SubscriptionId $_ -WarningAction SilentlyContinue
+    })
 }
 else {
-    $subscriptions = Get-AzSubscription | Where-Object { $_.State -eq "Enabled" }
+    $subscriptions = @(Get-AzSubscription -WarningAction SilentlyContinue |
+        Where-Object { $_.State -eq "Enabled" })
 }
 
 Write-Status "Suscripciones a analizar: $($subscriptions.Count)"
@@ -129,7 +131,7 @@ foreach ($sub in $subscriptions) {
 
     # ── 3.1 VNets y Subnets ──────────────────────────────────────────────
     Write-Status "  Descubriendo VNets..."
-    $vnets = Get-AzVirtualNetwork
+    $vnets = @(Get-AzVirtualNetwork)
 
     foreach ($vnet in $vnets) {
         $vnetRecord = [PSCustomObject]@{
@@ -183,19 +185,14 @@ foreach ($sub in $subscriptions) {
 
     # ── 3.3 Virtual Network Gateways (ExpressRoute + VPN) ────────────────
     Write-Status "  Descubriendo Gateways..."
-    $gateways = Get-AzVirtualNetworkGateway -ResourceGroupName * 2>$null
-
-    # Fallback: iterar por Resource Groups si el wildcard no es soportado
-    if (-not $gateways) {
-        $gateways = @()
-        $rgs = Get-AzResourceGroup
-        foreach ($rg in $rgs) {
-            try {
-                $gws = Get-AzVirtualNetworkGateway -ResourceGroupName $rg.ResourceGroupName
-                $gateways += $gws
-            }
-            catch { <# silenciar RGs sin gateways #> }
+    $gateways = @()
+    $rgs = @(Get-AzResourceGroup)
+    foreach ($rg in $rgs) {
+        try {
+            $gws = @(Get-AzVirtualNetworkGateway -ResourceGroupName $rg.ResourceGroupName -WarningAction SilentlyContinue)
+            if ($gws.Count -gt 0 -and $gws[0]) { $gateways += $gws }
         }
+        catch { <# silenciar RGs sin gateways #> }
     }
 
     foreach ($gw in $gateways) {
@@ -370,8 +367,8 @@ foreach ($vnet in $allVNets) {
     }
 }
 
-$hubCount   = ($allVNets | Where-Object { $_.IsHub }).Count
-$spokeCount = ($allVNets | Where-Object { $_.IsSpoke }).Count
+$hubCount   = @($allVNets | Where-Object { $_.IsHub }).Count
+$spokeCount = @($allVNets | Where-Object { $_.IsSpoke }).Count
 Write-Status "  Hubs identificados: $hubCount | Spokes identificados: $spokeCount" "OK"
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -386,7 +383,7 @@ Write-Status "══════════════════════
 Write-Status "`n[CHECK 1] Validando que Spokes solo conecten al Hub..."
 
 foreach ($vnet in ($allVNets | Where-Object { $_.IsSpoke })) {
-    $spokePeerings = $allPeerings | Where-Object { $_.SourceVNet -eq $vnet.VNetName }
+    $spokePeerings = @($allPeerings | Where-Object { $_.SourceVNet -eq $vnet.VNetName })
 
     if ($spokePeerings.Count -eq 0) {
         $bestPractices.Add([PSCustomObject]@{
@@ -533,7 +530,7 @@ foreach ($peer in $allPeerings) {
 Write-Status "`n[CHECK 5] Validando Zone Redundancy en Azure Firewalls..."
 
 foreach ($fw in $allFirewalls) {
-    $zones = $fw.Zones -split ", " | Where-Object { $_ }
+    $zones = @($fw.Zones -split ", " | Where-Object { $_ })
     if ($zones.Count -ge 2) {
         $bestPractices.Add([PSCustomObject]@{
             Check       = "Firewall-ZoneRedundancy"
@@ -557,9 +554,9 @@ foreach ($fw in $allFirewalls) {
 }
 
 # ── Resumen de la Evaluación ─────────────────────────────────────────────
-$passCount = ($bestPractices | Where-Object { $_.Status -eq "PASS" }).Count
-$failCount = ($bestPractices | Where-Object { $_.Status -eq "FAIL" }).Count
-$warnCount = ($bestPractices | Where-Object { $_.Status -match "WARN" }).Count
+$passCount = @($bestPractices | Where-Object { $_.Status -eq "PASS" }).Count
+$failCount = @($bestPractices | Where-Object { $_.Status -eq "FAIL" }).Count
+$warnCount = @($bestPractices | Where-Object { $_.Status -match "WARN" }).Count
 
 Write-Status "`n═══════════════════════════════════════════════════════════"
 Write-Status "  RESUMEN: $passCount PASS | $failCount FAIL | $warnCount WARNINGS"
@@ -679,9 +676,9 @@ foreach ($spoke in ($allVNets | Where-Object { $_.IsSpoke })) {
     [void]$mermaid.AppendLine("        ${spokeId}[""🖥️ $($spoke.VNetName)<br/>$($spoke.AddressSpace)<br/>$($spoke.Location)""]:::spokeStyle")
 
     # Listar subnets del Spoke (solo las estándar, las especiales ya están cubitas)
-    $spokeSubnets = $allSubnets | Where-Object {
+    $spokeSubnets = @($allSubnets | Where-Object {
         $_.VNetName -eq $spoke.VNetName -and $_.SubnetType -eq "Standard"
-    }
+    })
     if ($spokeSubnets.Count -gt 0 -and $spokeSubnets.Count -le 5) {
         foreach ($sn in $spokeSubnets) {
             $snId = ConvertTo-MermaidId "$($spoke.VNetName)_$($sn.SubnetName)"
