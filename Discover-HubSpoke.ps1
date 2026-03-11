@@ -95,8 +95,15 @@ catch {
 # @() fuerza array incluso con un solo resultado (evita error .Count en objeto único)
 if ($SubscriptionIds -and $SubscriptionIds.Count -gt 0) {
     $subscriptions = @($SubscriptionIds | ForEach-Object {
-        Get-AzSubscription -SubscriptionId $_ -WarningAction SilentlyContinue
-    })
+        $currentSubId = $_
+        try {
+            Get-AzSubscription -SubscriptionId $currentSubId -WarningAction SilentlyContinue
+        }
+        catch {
+            Write-Status "  No se pudo resolver suscripción $currentSubId : $($_.Exception.Message)" "WARN"
+            $null
+        }
+    } | Where-Object { $_ -ne $null })
 }
 else {
     $subscriptions = @(Get-AzSubscription -WarningAction SilentlyContinue |
@@ -131,6 +138,8 @@ foreach ($sub in $subscriptions) {
 
     Write-Status "────────────────────────────────────────────────────────────"
     Write-Status "Procesando suscripción: $subName [$subId]"
+
+    try {
     Set-AzContext -SubscriptionId $subId -Force -WarningAction SilentlyContinue | Out-Null
 
     # ── 3.1 VNets y Subnets ──────────────────────────────────────────────
@@ -164,8 +173,8 @@ foreach ($sub in $subscriptions) {
                 SubnetName    = $subnet.Name
                 SubnetType    = $subnetType
                 AddressPrefix = ($subnet.AddressPrefix -join ", ")
-                NSG           = (Get-ShortId $subnet.NetworkSecurityGroup.Id)
-                RouteTable    = (Get-ShortId $subnet.RouteTable.Id)
+                NSG           = if ($subnet.NetworkSecurityGroup) { Get-ShortId $subnet.NetworkSecurityGroup.Id } else { "N/A" }
+                RouteTable    = if ($subnet.RouteTable) { Get-ShortId $subnet.RouteTable.Id } else { "N/A" }
             })
         }
 
@@ -176,8 +185,8 @@ foreach ($sub in $subscriptions) {
                 SourceVNet          = $vnet.Name
                 SourceVNetId        = $vnet.Id
                 PeeringName         = $peering.Name
-                RemoteVNetId        = $peering.RemoteVirtualNetwork.Id
-                RemoteVNetName      = (Get-ShortId $peering.RemoteVirtualNetwork.Id)
+                RemoteVNetId        = if ($peering.RemoteVirtualNetwork) { $peering.RemoteVirtualNetwork.Id } else { "N/A" }
+                RemoteVNetName      = if ($peering.RemoteVirtualNetwork) { Get-ShortId $peering.RemoteVirtualNetwork.Id } else { "N/A" }
                 PeeringState        = $peering.PeeringState
                 AllowGatewayTransit = $peering.AllowGatewayTransit
                 UseRemoteGateways   = $peering.UseRemoteGateways
@@ -217,7 +226,7 @@ foreach ($sub in $subscriptions) {
         }
 
         # Determinar VNet asociada (desde IpConfigurations → SubnetId)
-        if ($gw.IpConfigurations.Count -gt 0) {
+        if ($gw.IpConfigurations.Count -gt 0 -and $gw.IpConfigurations[0].Subnet) {
             $subnetId = $gw.IpConfigurations[0].Subnet.Id
             if ($subnetId) {
                 # Formato: .../virtualNetworks/{vnetName}/subnets/GatewaySubnet
@@ -229,7 +238,7 @@ foreach ($sub in $subscriptions) {
 
         # Recoger IPs Públicas del Gateway
         foreach ($ipConfig in $gw.IpConfigurations) {
-            if ($ipConfig.PublicIpAddress.Id) {
+            if ($ipConfig.PublicIpAddress -and $ipConfig.PublicIpAddress.Id) {
                 $pipName = Get-ShortId $ipConfig.PublicIpAddress.Id
                 $gwRecord.PublicIPs += $pipName
                 try {
@@ -268,25 +277,29 @@ foreach ($sub in $subscriptions) {
         $firewalls = Get-AzFirewall
         foreach ($fw in $firewalls) {
             $fwVNet = ""
-            if ($fw.IpConfigurations.Count -gt 0 -and $fw.IpConfigurations[0].Subnet.Id) {
+            if ($fw.IpConfigurations.Count -gt 0 -and $fw.IpConfigurations[0].Subnet -and $fw.IpConfigurations[0].Subnet.Id) {
                 $parts = $fw.IpConfigurations[0].Subnet.Id -split "/"
                 $vnetIdx = [Array]::IndexOf($parts, "virtualNetworks")
                 if ($vnetIdx -ge 0) { $fwVNet = $parts[$vnetIdx + 1] }
             }
+
+            # Extraer IP privada de forma segura
+            $fwPrivateIp = ""
+            $fwPipConfig = $fw.IpConfigurations | Where-Object { $_.PrivateIpAddress } | Select-Object -First 1
+            if ($fwPipConfig) { $fwPrivateIp = $fwPipConfig.PrivateIpAddress }
 
             $allFirewalls.Add([PSCustomObject]@{
                 SubscriptionId  = $subId
                 ResourceGroup   = $fw.ResourceGroupName
                 FirewallName    = $fw.Name
                 Location        = $fw.Location
-                SkuName         = $fw.Sku.Name          # AZFW_VNet | AZFW_Hub
-                SkuTier         = $fw.Sku.Tier           # Standard | Premium
+                SkuName         = if ($fw.Sku) { $fw.Sku.Name } else { "N/A" }
+                SkuTier         = if ($fw.Sku) { $fw.Sku.Tier } else { "N/A" }
                 ThreatIntelMode = $fw.ThreatIntelMode
                 VNetName        = $fwVNet
-                PrivateIP       = ($fw.IpConfigurations | Where-Object { $_.PrivateIpAddress } |
-                                   Select-Object -First 1).PrivateIpAddress
+                PrivateIP       = $fwPrivateIp
                 Zones           = ($fw.Zones -join ", ")
-                PolicyId        = $fw.FirewallPolicy.Id
+                PolicyId        = if ($fw.FirewallPolicy) { $fw.FirewallPolicy.Id } else { "N/A" }
             })
         }
     }
@@ -314,6 +327,13 @@ foreach ($sub in $subscriptions) {
         }
     }
     catch { Write-Status "  DNS Resolver no disponible o módulo Az.DnsResolver no instalado" "WARN" }
+
+    } # fin try
+    catch {
+        Write-Status "  ERROR procesando suscripción $subName [$subId]: $($_.Exception.Message)" "ERROR"
+        Write-Status "  Continuando con la siguiente suscripción..." "WARN"
+        continue
+    }
 }
 
 Write-Status "════════════════════════════════════════════════════════════"
