@@ -125,9 +125,13 @@ $bestPractices     = [System.Collections.Generic.List[PSCustomObject]]::new()
 # ─────────────────────────────────────────────────────────────────────────────
 
 foreach ($sub in $subscriptions) {
+    # Normalizar propiedades (Az antiguo usa .SubscriptionId/.Name, nuevo usa .Id/.Name)
+    $subId   = if ($sub.PSObject.Properties['SubscriptionId']) { $sub.SubscriptionId } else { $sub.Id }
+    $subName = if ($sub.PSObject.Properties['Name']) { $sub.Name } else { $sub.SubscriptionName }
+
     Write-Status "────────────────────────────────────────────────────────────"
-    Write-Status "Procesando suscripción: $($sub.Name) [$($sub.Id)]"
-    Set-AzContext -SubscriptionId $sub.Id -Force | Out-Null
+    Write-Status "Procesando suscripción: $subName [$subId]"
+    Set-AzContext -SubscriptionId $subId -Force -WarningAction SilentlyContinue | Out-Null
 
     # ── 3.1 VNets y Subnets ──────────────────────────────────────────────
     Write-Status "  Descubriendo VNets..."
@@ -135,8 +139,8 @@ foreach ($sub in $subscriptions) {
 
     foreach ($vnet in $vnets) {
         $vnetRecord = [PSCustomObject]@{
-            SubscriptionId   = $sub.Id
-            SubscriptionName = $sub.Name
+            SubscriptionId   = $subId
+            SubscriptionName = $subName
             ResourceGroup    = $vnet.ResourceGroupName
             VNetName         = $vnet.Name
             Location         = $vnet.Location
@@ -168,7 +172,7 @@ foreach ($sub in $subscriptions) {
         # ── 3.2 VNet Peerings ────────────────────────────────────────────
         foreach ($peering in $vnet.VirtualNetworkPeerings) {
             $allPeerings.Add([PSCustomObject]@{
-                SubscriptionId      = $sub.Id
+                SubscriptionId      = $subId
                 SourceVNet          = $vnet.Name
                 SourceVNetId        = $vnet.Id
                 PeeringName         = $peering.Name
@@ -197,7 +201,7 @@ foreach ($sub in $subscriptions) {
 
     foreach ($gw in $gateways) {
         $gwRecord = [PSCustomObject]@{
-            SubscriptionId   = $sub.Id
+            SubscriptionId   = $subId
             ResourceGroup    = $gw.ResourceGroupName
             GatewayName      = $gw.Name
             GatewayType      = $gw.GatewayType        # ExpressRoute | Vpn
@@ -271,7 +275,7 @@ foreach ($sub in $subscriptions) {
             }
 
             $allFirewalls.Add([PSCustomObject]@{
-                SubscriptionId  = $sub.Id
+                SubscriptionId  = $subId
                 ResourceGroup   = $fw.ResourceGroupName
                 FirewallName    = $fw.Name
                 Location        = $fw.Location
@@ -300,7 +304,7 @@ foreach ($sub in $subscriptions) {
             }
 
             $allDnsResolvers.Add([PSCustomObject]@{
-                SubscriptionId = $sub.Id
+                SubscriptionId = $subId
                 ResourceGroup  = $resolver.ResourceGroupName
                 ResolverName   = $resolver.Name
                 Location       = $resolver.Location
