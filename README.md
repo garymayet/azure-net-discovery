@@ -92,12 +92,8 @@ Pegar este bloque en [mermaid.live](https://mermaid.live) para visualizar.
 ```mermaid
 graph TD
 
-    %% ═══════════════════════════════════════════════
-    %% Azure Hub & Spoke — Diagrama Auto-Generado
-    %% Fecha: 2026-03-11 14:32
-    %% ═══════════════════════════════════════════════
+    %% Azure Hub and Spoke - Diagrama Auto-Generado
 
-    %% Estilos
     classDef hubStyle fill:#1a73e8,stroke:#0d47a1,stroke-width:3px,color:#fff
     classDef spokeStyle fill:#34a853,stroke:#1b5e20,stroke-width:2px,color:#fff
     classDef fwStyle fill:#ea4335,stroke:#b71c1c,stroke-width:2px,color:#fff
@@ -105,87 +101,56 @@ graph TD
     classDef dnsStyle fill:#9c27b0,stroke:#4a148c,stroke-width:2px,color:#fff
     classDef onpremStyle fill:#607d8b,stroke:#263238,stroke-width:2px,color:#fff
 
-    %% On-Premises / Conectividad Externa
-    ONPREM[/"🏢 On-Premises
-    Datacenter"/]:::onpremStyle
+    ONPREM[/"On-Premises Datacenter"/]:::onpremStyle
 
-    %% ── Hub: hub-core-vnet ──
-    subgraph hub_core_vnet_sub["🔷 HUB: hub-core-vnet"]
+    subgraph hub_core_vnet_sub["HUB: hub-core-vnet"]
         direction TB
-        hub_core_vnet["📡 hub-core-vnet
-        10.0.0.0/16
-        eastus2"]:::hubStyle
+        hub_core_vnet["hub-core-vnet<br/>10.0.0.0/16<br/>eastus2"]:::hubStyle
 
-        hub_azfw["🔥 hub-azfw-premium
-        Tier: Premium
-        IP: 10.0.1.4
-        Zonas: 1, 2, 3"]:::fwStyle
+        hub_azfw["hub-azfw-premium<br/>Tier: Premium<br/>IP: 10.0.1.4<br/>Zonas: 1, 2, 3"]:::fwStyle
         hub_core_vnet --- hub_azfw
 
-        hub_er_gw["⚡ hub-er-gateway
-        ExpressRoute
-        SKU: ErGw2AZ
-        ✅ AZ"]:::gwStyle
+        hub_er_gw["hub-er-gateway<br/>ExpressRoute<br/>SKU: ErGw2AZ<br/>AZ: Yes"]:::gwStyle
         hub_core_vnet --- hub_er_gw
 
-        hub_vpn_gw["🔒 hub-vpn-gateway
-        VPN Gateway
-        SKU: VpnGw1
-        ⚠️ No-AZ"]:::gwStyle
+        hub_vpn_gw["hub-vpn-gateway<br/>VPN Gateway<br/>SKU: VpnGw1<br/>AZ: No"]:::gwStyle
         hub_core_vnet --- hub_vpn_gw
 
-        hub_dns["🌐 hub-dns-resolver
-        DNS Private Resolver"]:::dnsStyle
+        hub_dns["hub-dns-resolver<br/>DNS Private Resolver"]:::dnsStyle
         hub_core_vnet --- hub_dns
     end
 
-    ONPREM =="ExpressRoute"==> hub_er_gw
-    ONPREM -.-"VPN IPSec"-.-> hub_vpn_gw
+    ONPREM ==>|ExpressRoute| hub_er_gw
+    ONPREM -.->|VPN IPSec| hub_vpn_gw
 
-    %% ── Spoke: spoke-app1-vnet ──
-    subgraph spoke_app1_vnet_sub["🟢 SPOKE: spoke-app1-vnet"]
-        spoke_app1_vnet["🖥️ spoke-app1-vnet
-        10.1.0.0/16
-        eastus2"]:::spokeStyle
-        spoke_app1_vnet_frontend["📂 snet-frontend
-        10.1.1.0/24"]
+    subgraph spoke_app1_vnet_sub["SPOKE: spoke-app1-vnet"]
+        spoke_app1_vnet["spoke-app1-vnet<br/>10.1.0.0/16<br/>eastus2"]:::spokeStyle
+        spoke_app1_vnet_frontend["snet-frontend<br/>10.1.1.0/24"]
         spoke_app1_vnet --- spoke_app1_vnet_frontend
-        spoke_app1_vnet_backend["📂 snet-backend
-        10.1.2.0/24"]
+        spoke_app1_vnet_backend["snet-backend<br/>10.1.2.0/24"]
         spoke_app1_vnet --- spoke_app1_vnet_backend
-        spoke_app1_vnet_pe["📂 snet-privateendpoints
-        10.1.3.0/24"]
+        spoke_app1_vnet_pe["snet-privateendpoints<br/>10.1.3.0/24"]
         spoke_app1_vnet --- spoke_app1_vnet_pe
     end
 
-    %% ── Spoke: spoke-data-vnet ──
-    subgraph spoke_data_vnet_sub["🟢 SPOKE: spoke-data-vnet"]
-        spoke_data_vnet["🖥️ spoke-data-vnet
-        10.2.0.0/16
-        eastus2"]:::spokeStyle
-        spoke_data_vnet_sql["📂 snet-sql-mi
-        10.2.1.0/24"]
+    subgraph spoke_data_vnet_sub["SPOKE: spoke-data-vnet"]
+        spoke_data_vnet["spoke-data-vnet<br/>10.2.0.0/16<br/>eastus2"]:::spokeStyle
+        spoke_data_vnet_sql["snet-sql-mi<br/>10.2.1.0/24"]
         spoke_data_vnet --- spoke_data_vnet_sql
-        spoke_data_vnet_databricks["📂 snet-databricks
-        10.2.2.0/24"]
+        spoke_data_vnet_databricks["snet-databricks<br/>10.2.2.0/24"]
         spoke_data_vnet --- spoke_data_vnet_databricks
     end
 
-    %% ── Spoke: spoke-dev-vnet ──
-    subgraph spoke_dev_vnet_sub["🟢 SPOKE: spoke-dev-vnet"]
-        spoke_dev_vnet["🖥️ spoke-dev-vnet
-        10.3.0.0/16
-        eastus2"]:::spokeStyle
-        spoke_dev_vnet_aks["📂 snet-aks
-        10.3.0.0/22"]
+    subgraph spoke_dev_vnet_sub["SPOKE: spoke-dev-vnet"]
+        spoke_dev_vnet["spoke-dev-vnet<br/>10.3.0.0/16<br/>eastus2"]:::spokeStyle
+        spoke_dev_vnet_aks["snet-aks<br/>10.3.0.0/22"]
         spoke_dev_vnet --- spoke_dev_vnet_aks
     end
 
-    %% ═══ Peering Connections ═══
-    hub_core_vnet <--"GW Transit | Use Remote GW"--> spoke_app1_vnet
-    hub_core_vnet <--"GW Transit"--> spoke_data_vnet
-    hub_core_vnet <--"GW Transit | Use Remote GW"--> spoke_dev_vnet
-    spoke_dev_vnet -.-"⚠️ S2S: Peering"-.-> spoke_app1_vnet
+    hub_core_vnet <-->|GW Transit, Use Remote GW| spoke_app1_vnet
+    hub_core_vnet <-->|GW Transit| spoke_data_vnet
+    hub_core_vnet <-->|GW Transit, Use Remote GW| spoke_dev_vnet
+    spoke_dev_vnet -.->|S2S: Spoke-to-Spoke| spoke_app1_vnet
 ```
 
 ---
