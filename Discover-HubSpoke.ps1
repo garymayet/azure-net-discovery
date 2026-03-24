@@ -783,7 +783,338 @@ Write-Host $mermaidContent
 Write-Host '```'
 
 # ─────────────────────────────────────────────────────────────────────────────
-# REGIÓN 7 — EXPORTACIÓN DETALLADA DE INVENTARIO
+# REGIÓN 7 — GENERACIÓN DE RESUMEN ARQUITECTÓNICO (architecture-summary.md)
+# ─────────────────────────────────────────────────────────────────────────────
+
+Write-Status "`n═══════════════════════════════════════════════════════════"
+Write-Status "  Generando resumen arquitectónico..."
+Write-Status "═══════════════════════════════════════════════════════════"
+
+$md = [System.Text.StringBuilder]::new()
+
+# ── Encabezado ──
+[void]$md.AppendLine("# Azure Hub & Spoke — Resumen Arquitectónico")
+[void]$md.AppendLine("")
+[void]$md.AppendLine("> Documento auto-generado por ``Discover-HubSpoke.ps1`` el $(Get-Date -Format 'yyyy-MM-dd') a las $(Get-Date -Format 'HH:mm') UTC.")
+[void]$md.AppendLine("> Este resumen describe la topología de red Azure descubierta y los hallazgos de la auditoría de mejores prácticas.")
+[void]$md.AppendLine("")
+
+# ── Inventario General ──
+[void]$md.AppendLine("## 1. Inventario General")
+[void]$md.AppendLine("")
+$subNames = ($allVNets | Select-Object -Property SubscriptionName -Unique).SubscriptionName -join ", "
+[void]$md.AppendLine("| Métrica | Valor |")
+[void]$md.AppendLine("|---|---|")
+[void]$md.AppendLine("| Suscripciones analizadas | $($subscriptions.Count) ($subNames) |")
+[void]$md.AppendLine("| VNets descubiertas | $($allVNets.Count) |")
+[void]$md.AppendLine("| Subnets totales | $($allSubnets.Count) |")
+[void]$md.AppendLine("| Peerings configurados | $($allPeerings.Count) |")
+[void]$md.AppendLine("| ExpressRoute Gateways | $($allErGateways.Count) |")
+[void]$md.AppendLine("| VPN Gateways | $($allVpnGateways.Count) |")
+[void]$md.AppendLine("| Azure Firewalls | $($allFirewalls.Count) |")
+[void]$md.AppendLine("| DNS Private Resolvers | $($allDnsResolvers.Count) |")
+[void]$md.AppendLine("| Región principal | $(($allVNets | Group-Object Location | Sort-Object Count -Descending | Select-Object -First 1).Name) |")
+[void]$md.AppendLine("")
+
+# ── Topología Descubierta ──
+[void]$md.AppendLine("## 2. Topología Descubierta")
+[void]$md.AppendLine("")
+
+$hubVNets   = @($allVNets | Where-Object { $_.IsHub })
+$spokeVNets = @($allVNets | Where-Object { $_.IsSpoke })
+
+if ($hubVNets.Count -eq 0) {
+    [void]$md.AppendLine("No se identificaron VNets Hub. Esto puede indicar que los gateways y firewalls residen en suscripciones no incluidas en el análisis.")
+}
+else {
+    [void]$md.AppendLine("La arquitectura presenta **$($hubVNets.Count) Hub(s)** y **$($spokeVNets.Count) Spoke(s)**.")
+    [void]$md.AppendLine("")
+
+    # Describir cada Hub
+    foreach ($hub in $hubVNets) {
+        [void]$md.AppendLine("### Hub: $($hub.VNetName)")
+        [void]$md.AppendLine("")
+        [void]$md.AppendLine("| Atributo | Valor |")
+        [void]$md.AppendLine("|---|---|")
+        [void]$md.AppendLine("| Suscripción | $($hub.SubscriptionName) |")
+        [void]$md.AppendLine("| Resource Group | $($hub.ResourceGroup) |")
+        [void]$md.AppendLine("| Región | $($hub.Location) |")
+        [void]$md.AppendLine("| Espacio de direcciones | ``$($hub.AddressSpace)`` |")
+        [void]$md.AppendLine("")
+
+        # Gateways en este Hub
+        $hubErGws  = @($allErGateways  | Where-Object { $_.VNetName -eq $hub.VNetName })
+        $hubVpnGws = @($allVpnGateways | Where-Object { $_.VNetName -eq $hub.VNetName })
+
+        if (($hubErGws.Count + $hubVpnGws.Count) -gt 0) {
+            [void]$md.AppendLine("**Gateways desplegados:**")
+            [void]$md.AppendLine("")
+            [void]$md.AppendLine("| Gateway | Tipo | SKU | Zone Redundant | Active-Active | BGP |")
+            [void]$md.AppendLine("|---|---|---|---|---|---|")
+            foreach ($gw in ($hubErGws + $hubVpnGws)) {
+                $azLabel = if ($gw.IsZoneRedundant) { "Si" } else { "No" }
+                [void]$md.AppendLine("| $($gw.GatewayName) | $($gw.GatewayType) | $($gw.Sku) | $azLabel | $($gw.Active) | $($gw.EnableBgp) |")
+            }
+            [void]$md.AppendLine("")
+        }
+
+        # Firewalls en este Hub
+        $hubFws = @($allFirewalls | Where-Object { $_.VNetName -eq $hub.VNetName })
+        if ($hubFws.Count -gt 0) {
+            [void]$md.AppendLine("**Azure Firewalls:**")
+            [void]$md.AppendLine("")
+            [void]$md.AppendLine("| Firewall | Tier | IP Privada | Zonas | Threat Intel |")
+            [void]$md.AppendLine("|---|---|---|---|---|")
+            foreach ($fw in $hubFws) {
+                [void]$md.AppendLine("| $($fw.FirewallName) | $($fw.SkuTier) | ``$($fw.PrivateIP)`` | $($fw.Zones) | $($fw.ThreatIntelMode) |")
+            }
+            [void]$md.AppendLine("")
+        }
+
+        # DNS Resolvers en este Hub
+        $hubDns = @($allDnsResolvers | Where-Object { $_.VNetName -eq $hub.VNetName })
+        if ($hubDns.Count -gt 0) {
+            [void]$md.AppendLine("**DNS Private Resolvers:** $($hubDns.ResolverName -join ', ')")
+            [void]$md.AppendLine("")
+        }
+
+        # Peerings desde este Hub
+        $hubPeers = @($allPeerings | Where-Object { $_.SourceVNet -eq $hub.VNetName })
+        if ($hubPeers.Count -gt 0) {
+            [void]$md.AppendLine("**Peerings ($($hubPeers.Count)):**")
+            [void]$md.AppendLine("")
+            [void]$md.AppendLine("| VNet Remota | Estado | GW Transit | Forwarded Traffic |")
+            [void]$md.AppendLine("|---|---|---|---|")
+            foreach ($p in $hubPeers) {
+                [void]$md.AppendLine("| $($p.RemoteVNetName) | $($p.PeeringState) | $($p.AllowGatewayTransit) | $($p.AllowForwardedTraffic) |")
+            }
+            [void]$md.AppendLine("")
+        }
+    }
+}
+
+# ── Detalle de Spokes ──
+[void]$md.AppendLine("## 3. VNets Spoke")
+[void]$md.AppendLine("")
+
+if ($spokeVNets.Count -eq 0) {
+    [void]$md.AppendLine("No se identificaron VNets Spoke.")
+}
+else {
+    [void]$md.AppendLine("| Spoke | Suscripción | Región | Espacio de Direcciones | Subnets | Conectado a Hub | Use Remote GW |")
+    [void]$md.AppendLine("|---|---|---|---|---|---|---|")
+
+    foreach ($spoke in $spokeVNets) {
+        $spokeSnCount = @($allSubnets | Where-Object { $_.VNetName -eq $spoke.VNetName }).Count
+        $spokePeers   = @($allPeerings | Where-Object { $_.SourceVNet -eq $spoke.VNetName })
+
+        # Determinar a qué Hubs conecta
+        $connectedHubs = @($spokePeers | Where-Object { $hubVNetNames.Contains($_.RemoteVNetName) })
+        $hubNames      = if ($connectedHubs.Count -gt 0) { ($connectedHubs.RemoteVNetName -join ", ") } else { "Ninguno" }
+        $useRemoteGw   = if ($connectedHubs.Count -gt 0) { ($connectedHubs.UseRemoteGateways -join ", ") } else { "N/A" }
+
+        [void]$md.AppendLine("| $($spoke.VNetName) | $($spoke.SubscriptionName) | $($spoke.Location) | ``$($spoke.AddressSpace)`` | $spokeSnCount | $hubNames | $useRemoteGw |")
+    }
+    [void]$md.AppendLine("")
+}
+
+# ── Mapa de Conectividad ──
+[void]$md.AppendLine("## 4. Mapa de Conectividad")
+[void]$md.AppendLine("")
+
+# On-Premises
+if (($allErGateways.Count + $allVpnGateways.Count) -gt 0) {
+    [void]$md.AppendLine("### Conectividad On-Premises")
+    [void]$md.AppendLine("")
+    if ($allErGateways.Count -gt 0) {
+        foreach ($gw in $allErGateways) {
+            [void]$md.AppendLine("- **ExpressRoute** via ``$($gw.GatewayName)`` (SKU: $($gw.Sku)) en Hub ``$($gw.VNetName)``")
+        }
+    }
+    if ($allVpnGateways.Count -gt 0) {
+        foreach ($gw in $allVpnGateways) {
+            $ips = if ($gw.PublicIPs.Count -gt 0) { " - IPs: $($gw.PublicIPs -join ', ')" } else { "" }
+            [void]$md.AppendLine("- **VPN IPSec** via ``$($gw.GatewayName)`` (SKU: $($gw.Sku)) en Hub ``$($gw.VNetName)``$ips")
+        }
+    }
+    [void]$md.AppendLine("")
+}
+
+# Peerings cross-sub (Spoke-to-Spoke detectados)
+$s2sPeerings = @($allPeerings | Where-Object {
+    -not $hubVNetNames.Contains($_.SourceVNet) -and -not $hubVNetNames.Contains($_.RemoteVNetName)
+})
+if ($s2sPeerings.Count -gt 0) {
+    [void]$md.AppendLine("### Peerings Spoke-to-Spoke (requieren revisión)")
+    [void]$md.AppendLine("")
+    [void]$md.AppendLine("Los siguientes peerings conectan VNets que no fueron clasificadas como Hub. Si alguna de estas VNets actúa como Hub funcional (ej. transit, bastion), considerar ajustar la heurística o la arquitectura.")
+    [void]$md.AppendLine("")
+    [void]$md.AppendLine("| Origen | Destino | Estado | Forwarded Traffic |")
+    [void]$md.AppendLine("|---|---|---|---|")
+
+    $shownS2S = [System.Collections.Generic.HashSet[string]]::new()
+    foreach ($p in $s2sPeerings) {
+        $pairKey = @($p.SourceVNet, $p.RemoteVNetName) | Sort-Object
+        $key = "$($pairKey[0])|$($pairKey[1])"
+        if ($shownS2S.Contains($key)) { continue }
+        [void]$shownS2S.Add($key)
+        [void]$md.AppendLine("| $($p.SourceVNet) | $($p.RemoteVNetName) | $($p.PeeringState) | $($p.AllowForwardedTraffic) |")
+    }
+    [void]$md.AppendLine("")
+}
+
+# ── Subnets Especiales ──
+[void]$md.AppendLine("## 5. Subnets Especiales")
+[void]$md.AppendLine("")
+
+$specialSubnets = @($allSubnets | Where-Object { $_.SubnetType -ne "Standard" })
+if ($specialSubnets.Count -gt 0) {
+    [void]$md.AppendLine("| VNet | Subnet | Tipo | CIDR |")
+    [void]$md.AppendLine("|---|---|---|---|")
+    foreach ($sn in $specialSubnets) {
+        [void]$md.AppendLine("| $($sn.VNetName) | $($sn.SubnetName) | $($sn.SubnetType) | ``$($sn.AddressPrefix)`` |")
+    }
+    [void]$md.AppendLine("")
+}
+else {
+    [void]$md.AppendLine("No se encontraron GatewaySubnets ni AzureFirewallSubnets.")
+    [void]$md.AppendLine("")
+}
+
+# ── IPs Públicas ──
+if ($allPublicIPs.Count -gt 0) {
+    [void]$md.AppendLine("## 6. IPs Públicas Asociadas a Gateways")
+    [void]$md.AppendLine("")
+    [void]$md.AppendLine("| Nombre | IP | SKU | Asociada a | Zonas |")
+    [void]$md.AppendLine("|---|---|---|---|---|")
+    foreach ($pip in $allPublicIPs) {
+        [void]$md.AppendLine("| $($pip.Name) | ``$($pip.IpAddress)`` | $($pip.SKU) | $($pip.AssociatedTo) | $($pip.Zones) |")
+    }
+    [void]$md.AppendLine("")
+}
+
+# ── Auditoría de Mejores Prácticas ──
+[void]$md.AppendLine("## 7. Auditoría de Mejores Prácticas")
+[void]$md.AppendLine("")
+[void]$md.AppendLine("| Resultado | Cantidad |")
+[void]$md.AppendLine("|---|---|")
+[void]$md.AppendLine("| PASS | $passCount |")
+[void]$md.AppendLine("| FAIL | $failCount |")
+[void]$md.AppendLine("| WARNING | $warnCount |")
+[void]$md.AppendLine("")
+
+# Agrupar por tipo de check
+$checkGroups = $bestPractices | Group-Object Check
+foreach ($group in $checkGroups) {
+    $groupFails = @($group.Group | Where-Object { $_.Status -eq "FAIL" })
+    $groupPass  = @($group.Group | Where-Object { $_.Status -eq "PASS" })
+    $groupWarns = @($group.Group | Where-Object { $_.Status -match "WARN" })
+
+    $emoji = if ($groupFails.Count -gt 0) { "🔴" } elseif ($groupWarns.Count -gt 0) { "🟡" } else { "🟢" }
+
+    [void]$md.AppendLine("### $emoji $($group.Name)")
+    [void]$md.AppendLine("")
+    [void]$md.AppendLine("$($groupPass.Count) pass, $($groupFails.Count) fail, $($groupWarns.Count) warning.")
+    [void]$md.AppendLine("")
+
+    if ($groupFails.Count -gt 0) {
+        [void]$md.AppendLine("**Hallazgos que requieren acción:**")
+        [void]$md.AppendLine("")
+        [void]$md.AppendLine("| Recurso | Detalle | Recomendación |")
+        [void]$md.AppendLine("|---|---|---|")
+        foreach ($item in $groupFails) {
+            [void]$md.AppendLine("| $($item.Resource) | $($item.Detail) | $($item.Recommendation) |")
+        }
+        [void]$md.AppendLine("")
+    }
+
+    if ($groupWarns.Count -gt 0) {
+        [void]$md.AppendLine("**Advertencias:**")
+        [void]$md.AppendLine("")
+        [void]$md.AppendLine("| Recurso | Detalle | Recomendación |")
+        [void]$md.AppendLine("|---|---|---|")
+        foreach ($item in $groupWarns) {
+            [void]$md.AppendLine("| $($item.Resource) | $($item.Detail) | $($item.Recommendation) |")
+        }
+        [void]$md.AppendLine("")
+    }
+}
+
+# ── Diagrama ──
+[void]$md.AppendLine("## 8. Diagrama de Topología")
+[void]$md.AppendLine("")
+[void]$md.AppendLine("El siguiente diagrama fue generado automáticamente. Para renderizarlo, pegar en [mermaid.live](https://mermaid.live) o visualizar directamente en GitHub.")
+[void]$md.AppendLine("")
+[void]$md.AppendLine('```mermaid')
+[void]$md.AppendLine($mermaidContent)
+[void]$md.AppendLine('```')
+[void]$md.AppendLine("")
+
+# ── Recomendaciones Generales ──
+[void]$md.AppendLine("## 9. Recomendaciones Generales")
+[void]$md.AppendLine("")
+
+$recommendations = @()
+
+# Recomendación: Firewalls ausentes
+if ($allFirewalls.Count -eq 0) {
+    $recommendations += "**Desplegar Azure Firewall en el Hub.** No se detectaron Azure Firewalls en ninguna VNet Hub. Sin un firewall centralizado, el tráfico entre spokes y hacia internet no tiene inspección de seguridad. Considerar desplegar Azure Firewall Premium con Threat Intelligence en el Hub principal, y configurar UDRs en los spokes para enrutar tráfico 0.0.0.0/0 hacia la IP privada del firewall."
+}
+
+# Recomendación: DNS Resolver ausente
+if ($allDnsResolvers.Count -eq 0) {
+    $recommendations += "**Implementar Azure DNS Private Resolver.** No se detectaron DNS Private Resolvers. Para resolución DNS consistente entre on-premises y Azure (especialmente para Private Endpoints), considerar desplegar un DNS Private Resolver en el Hub con inbound y outbound endpoints."
+}
+
+# Recomendación: Zone Redundancy
+$nonAzGateways = @(($allErGateways + $allVpnGateways) | Where-Object { -not $_.IsZoneRedundant })
+if ($nonAzGateways.Count -gt 0) {
+    $gwNames = ($nonAzGateways.GatewayName -join ", ")
+    $recommendations += "**Migrar gateways a SKUs con Zone Redundancy.** Los gateways $gwNames no tienen redundancia de zona. Un fallo de zona en la región afectaría la conectividad on-premises completa. Planificar migración a SKUs con sufijo AZ (ej. ErGw2AZ, VpnGw2AZ)."
+}
+
+# Recomendación: Spoke-to-Spoke
+if ($s2sPeerings.Count -gt 0) {
+    $recommendations += "**Revisar peerings Spoke-to-Spoke.** Se detectaron $($s2sPeerings.Count) peerings entre VNets no-Hub. En una arquitectura Hub & Spoke estricta, todo el tráfico inter-spoke debería fluir a través del Hub para inspección y control. Si estas VNets (como VNET-BASTION o transit) actúan como Hubs funcionales, documentar el diseño. De lo contrario, eliminar los peerings directos y enrutar vía Hub."
+}
+
+# Recomendación: Gateway Transit incompleto
+$transitFails = @($bestPractices | Where-Object { $_.Check -match "GatewayTransit" -and $_.Status -eq "FAIL" })
+if ($transitFails.Count -gt 0) {
+    $recommendations += "**Completar configuración de Gateway Transit.** Se encontraron $($transitFails.Count) peerings con configuración incompleta de Gateway Transit. Esto puede causar que los spokes no hereden la conectividad on-premises del Hub. Verificar que AllowGatewayTransit=True en el lado Hub y UseRemoteGateways=True en el lado Spoke para cada peering."
+}
+
+# Recomendación: ForwardedTraffic
+$fwdWarns = @($bestPractices | Where-Object { $_.Check -eq "ForwardedTraffic" })
+if ($fwdWarns.Count -gt 0) {
+    $recommendations += "**Habilitar AllowForwardedTraffic en peerings.** $($fwdWarns.Count) peerings tienen AllowForwardedTraffic deshabilitado. Esto es necesario si se quiere implementar enrutamiento transitivo a través de un NVA o Azure Firewall en el Hub."
+}
+
+if ($recommendations.Count -gt 0) {
+    $i = 1
+    foreach ($rec in $recommendations) {
+        [void]$md.AppendLine("$i. $rec")
+        [void]$md.AppendLine("")
+        $i++
+    }
+}
+else {
+    [void]$md.AppendLine("No se identificaron recomendaciones críticas. La arquitectura cumple con las mejores prácticas evaluadas.")
+    [void]$md.AppendLine("")
+}
+
+# ── Footer ──
+[void]$md.AppendLine("---")
+[void]$md.AppendLine("")
+[void]$md.AppendLine("*Generado por [Discover-HubSpoke.ps1](Discover-HubSpoke.ps1) — Para actualizar este documento, volver a ejecutar el script.*")
+
+# Guardar archivo
+$summaryPath = Join-Path $OutputPath "architecture-summary.md"
+$md.ToString() | Out-File -FilePath $summaryPath -Encoding UTF8
+Write-Status "Resumen arquitectónico exportado: $summaryPath" "OK"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# REGIÓN 8 — EXPORTACIÓN DETALLADA DE INVENTARIO
 # ─────────────────────────────────────────────────────────────────────────────
 
 Write-Status "`nExportando inventarios detallados..."
@@ -803,7 +1134,7 @@ if ($allFirewalls.Count -gt 0) {
 Write-Status "Inventarios exportados en: $OutputPath" "OK"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# REGIÓN 8 — RESUMEN FINAL
+# REGIÓN 9 — RESUMEN FINAL
 # ─────────────────────────────────────────────────────────────────────────────
 
 Write-Status "`n═══════════════════════════════════════════════════════════"
@@ -812,6 +1143,7 @@ Write-Status "══════════════════════
 Write-Status "Archivos generados:" "OK"
 Write-Status "  📊 $csvPath"
 Write-Status "  🗺️  $mermaidPath"
+Write-Status "  📝 $summaryPath"
 Write-Status "  📋 $OutputPath/inventory-*.csv"
 Write-Status ""
 Write-Status "Próximos pasos:"
